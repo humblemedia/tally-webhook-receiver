@@ -23,7 +23,8 @@ require_once TWR_PLUGIN_DIR . 'includes/class-webhook-controller.php';
 
 function bootstrap() {
 	$store      = new Submission_Store();
-	$controller = new TallyWebhookController( new Signature_Verifier(), $store );
+	$secret     = defined( 'TWR_TALLY_SECRET' ) ? TWR_TALLY_SECRET : '';
+	$controller = new Webhook_Controller( new Signature_Verifier( $secret ), $store );
 
 	add_action( 'init', array( $store, 'register_post_type' ) );
 	add_action( 'rest_api_init', array( $controller, 'register_routes' ) );

@@ -4,7 +4,7 @@ namespace TallyWebhookReceiver;
 
 defined( 'ABSPATH' ) || exit;
 
-class TallyWebhookController extends \WP_REST_Controller {
+class Webhook_Controller extends \WP_REST_Controller {
 
 	private $verifier;
 	private $store;
