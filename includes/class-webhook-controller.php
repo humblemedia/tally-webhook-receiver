@@ -6,14 +6,9 @@ defined( 'ABSPATH' ) || exit;
 
 class Webhook_Controller extends \WP_REST_Controller {
 
-	private $verifier;
-	private $store;
-
-	public function __construct( Signature_Verifier $verifier, Submission_Store $store ) {
+	public function __construct( private Signature_Verifier $verifier, private Submission_Store $store ) {
 		$this->namespace = 'tally-webhook-receiver/v1';
 		$this->rest_base = 'webhooks';
-		$this->verifier  = $verifier;
-		$this->store     = $store;
 	}
 
 	public function register_routes() {
@@ -31,8 +26,18 @@ class Webhook_Controller extends \WP_REST_Controller {
 	}
 
 	public function create_item_permissions_check( $request ) {
-		// Get raw body + header, ask $this->verifier.
-		// Return true, or a WP_Error with status 401.
+		// The signature covers the exact bytes Tally sent. Decoding and re-encoding the JSON changes them.
+		$raw_body  = $request->get_body();
+		$signature = $request->get_header( 'tally-signature' );
+		if ( $this->verifier->verify( $raw_body, $signature ) ) {
+			return true;
+		}
+
+		return new \WP_Error(
+			'twr_invalid_signature',
+			__( 'Invalid webhook signature.', 'tally-webhook-receiver' ),
+			array( 'status' => 401 )
+		);
 	}
 
 	public function create_item( $request ) {
