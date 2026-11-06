@@ -94,6 +94,23 @@ class Webhook_Controller extends \WP_REST_Controller {
 	}
 
 	public function create_item( $request ) {
-		// TODO.
+		// Safe because the signature and schema have both already passed.
+		$payload = $request->get_json_params();
+
+		// Return 2xx, not 409. Providers retry on any non-2xx, so an error code causes more retries.
+		if ( $this->store->exists( $payload['eventId'] ) ) {
+			return new \WP_REST_Response( array( 'duplicate' => true ), 200 );
+		}
+
+		$post_id = $this->store->save( $payload );
+
+		if ( is_wp_error( $post_id ) ) {
+			return $post_id;
+		}
+
+		// Heavy work belongs in Action Scheduler or WP-Cron so the endpoint answers fast.
+		do_action( 'twr_submission_received', $post_id, $payload );
+
+		return new \WP_REST_Response( array( 'id' => $post_id ), 201 );
 	}
 }
