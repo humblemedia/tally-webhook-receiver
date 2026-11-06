@@ -4,13 +4,29 @@ namespace TallyWebhookReceiver;
 
 defined( 'ABSPATH' ) || exit;
 
+/**
+ * REST endpoint for Tally webhooks at /wp-json/tally-webhook-receiver/v1/webhooks.
+ *
+ * Request order: WordPress validates against the schema, then the permission check verifies
+ * the signature, then create_item() saves. Because validation runs first, a malformed payload
+ * gets a 400 before the signature is checked.
+ */
 class Webhook_Controller extends \WP_REST_Controller {
 
+	/**
+	 * @param Signature_Verifier $verifier Checks the Tally-Signature header.
+	 * @param Submission_Store   $store    Saves submissions and finds duplicates.
+	 */
 	public function __construct( private Signature_Verifier $verifier, private Submission_Store $store ) {
 		$this->namespace = 'tally-webhook-receiver/v1';
 		$this->rest_base = 'webhooks';
 	}
 
+	/**
+	 * Registers the POST route.
+	 *
+	 * WordPress only parses the body as JSON when Content-Type is application/json.
+	 */
 	public function register_routes() {
 		register_rest_route(
 			$this->namespace,
@@ -27,6 +43,12 @@ class Webhook_Controller extends \WP_REST_Controller {
 		);
 	}
 
+	/**
+	 * Allows the request only if the Tally signature is valid.
+	 *
+	 * @param \WP_REST_Request $request Full request data.
+	 * @return true|\WP_Error
+	 */
 	public function create_item_permissions_check( $request ) {
 		// The signature covers the exact bytes Tally sent. Decoding and re-encoding the JSON changes them.
 		$raw_body  = $request->get_body();
@@ -42,6 +64,11 @@ class Webhook_Controller extends \WP_REST_Controller {
 		);
 	}
 
+	/**
+	 * Describes a valid Tally payload. Cached on $this->schema, as core controllers do.
+	 *
+	 * @return array
+	 */
 	public function get_item_schema() {
 		if ( $this->schema ) {
 			return $this->schema;
@@ -93,6 +120,12 @@ class Webhook_Controller extends \WP_REST_Controller {
 		return $this->schema;
 	}
 
+	/**
+	 * Saves a new submission, or reports a duplicate.
+	 *
+	 * @param \WP_REST_Request $request Full request data.
+	 * @return \WP_REST_Response|\WP_Error 201 with the new ID, 200 for a duplicate, or an error.
+	 */
 	public function create_item( $request ) {
 		// Safe because the signature and schema have both already passed.
 		$payload = $request->get_json_params();
@@ -108,7 +141,14 @@ class Webhook_Controller extends \WP_REST_Controller {
 			return $post_id;
 		}
 
-		// Heavy work belongs in Action Scheduler or WP-Cron so the endpoint answers fast.
+		/**
+		 * Fires after a new Tally submission is saved.
+		 *
+		 * Heavy work belongs in Action Scheduler or WP-Cron so the endpoint answers fast.
+		 *
+		 * @param int   $post_id The new tally_submission post ID.
+		 * @param array $payload The validated webhook payload.
+		 */
 		do_action( 'twr_submission_received', $post_id, $payload );
 
 		return new \WP_REST_Response( array( 'id' => $post_id ), 201 );

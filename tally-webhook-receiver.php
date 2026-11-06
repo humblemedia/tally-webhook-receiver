@@ -21,6 +21,12 @@ require_once TWR_PLUGIN_DIR . 'includes/class-signature-verifier.php';
 require_once TWR_PLUGIN_DIR . 'includes/class-submission-store.php';
 require_once TWR_PLUGIN_DIR . 'includes/class-webhook-controller.php';
 
+/**
+ * Wires the plugin together. Builds each object once and hooks it in.
+ *
+ * The secret comes from wp-config.php, so it stays out of the database and the repo.
+ * If it's missing, the verifier gets an empty string and every request fails closed.
+ */
 function bootstrap() {
 	$store      = new Submission_Store();
 	$secret     = defined( 'TWR_TALLY_SECRET' ) ? TWR_TALLY_SECRET : '';
